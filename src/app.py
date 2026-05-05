@@ -1,12 +1,21 @@
 import streamlit as st
 import os
+from dotenv import load_dotenv
 from rag_engine import VASExpertSystem
 from local_rag_engine import VASLocalSystem
 
-st.set_page_config(page_title="VAS Expert RAG", page_icon="📑", layout="wide")
+load_dotenv()
 
-# API Key cho Gemini
-os.environ["GOOGLE_API_KEY"] = "AIzaSyCE6ej48wj5AOBkztExNrsgq8e0zJMWjdo" 
+# Lấy API Key từ môi trường
+api_key = os.getenv("GOOGLE_API_KEY")
+
+if not api_key:
+    st.error("❌ Không tìm thấy GOOGLE_API_KEY. Hãy kiểm tra file .env")
+    st.stop()
+
+os.environ["GOOGLE_API_KEY"] = api_key
+
+st.set_page_config(page_title="VAS Expert RAG", page_icon="📑", layout="wide")
 
 with st.sidebar:
     st.header("⚙️ Cấu hình")
