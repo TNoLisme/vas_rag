@@ -30,7 +30,7 @@ class VASLocalSystem:
         print(f"\n[TRUY VẤN LOCAL]: {user_query}")
         history_str = "\n".join([f"{m['role']}: {m['content']}" for m in chat_history_list[-3:]])
         
-        print(f"[NODE: REWRITE] Model: Qwen 3B")
+        print(f"[NODE: REWRITE] Model: Local Qwen 3B")
         prompt = ChatPromptTemplate.from_template("""
 [VAI TRÒ] Bạn là chuyên gia phân tích truy vấn cấp cao cho hệ thống RAG Chuẩn mực Kế toán Việt Nam (VAS).
 [NHIỆM VỤ] Dựa vào lịch sử chat và câu hỏi mới, hãy thực hiện hai bước suy luận:
@@ -67,11 +67,10 @@ Kết quả JSON:
         print(f"   ➔ Standalone: {standalone}")
         print(f"   ➔ Keywords: {keywords}")
 
-        print(f"[NODE: RETRIEVE] Model: Hybrid Search")
+        print(f"[NODE: RETRIEVE] Model: Local Qwen 3B")
         docs = self.hybrid_retriever.invoke(f"{standalone} {' '.join(keywords)}")
         
-        print(f"[NODE: GENERATE] Model: Qwen 3B")
-        
+        print(f"[NODE: GENERATE] Model: Local Qwen 3B")
         # Xây dựng context có kèm path metadata để AI dễ trích dẫn nguồn
         context_text = ""
         for i, d in enumerate(docs):
@@ -97,7 +96,6 @@ CÂU TRẢ LỜI:"""
         answer = self.local_llm.invoke(prompt).content
         print("-" * 60)
 
-        # Chuyển đổi Documents thành Dict để UI không lỗi
         sources_dict = [{"content": d.page_content, "metadata": d.metadata} for d in docs]
 
         return {

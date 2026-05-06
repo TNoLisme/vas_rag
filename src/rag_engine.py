@@ -8,10 +8,10 @@ from langchain_community.retrievers import BM25Retriever
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.documents import Document
 
-class VASExpertSystem:
+class VASHybridSystem:
     def __init__(self, vector_db_path="vector_db/"):
         print("\n" + "=" * 60)
-        print("[INIT] MASTER ADAPTIVE SELF-RAG")
+        print("[INIT] HYBRID ADAPTIVE SELF-RAG")
         
         # Models
         self.local_llm = ChatOllama(model="qwen2.5:3b", temperature=0.0)
@@ -38,7 +38,7 @@ class VASExpertSystem:
         self.bm25_retriever.k = 5 # Lấy 5 đoạn chứa từ khóa chính xác nhất
 
         print(f"[INIT] Đã nạp {len(documents)} chunks tri thức.")
-        print("=" * 60 + "\n")
+        print("-" * 60 + "\n")
 
     # NODE REWRITE
     def node_rewrite(self, user_query, history_str):
@@ -195,7 +195,7 @@ CHỈ TRẢ VỀ DUY NHẤT: YES hoặc NO.
         return decision
 
     def run(self, user_query, chat_history_list):
-        print(f"\n[TRUY VẤN MỚI]: {user_query}")
+        print(f"\n[TRUY VẤN HYBRID]: {user_query}")
         history_str = "\n".join([f"{m['role']}: {m['content']}" for m in chat_history_list[-3:]])
         
         # REWRITE
@@ -213,11 +213,11 @@ CHỈ TRẢ VỀ DUY NHẤT: YES hoặc NO.
             final_docs = self.node_retrieve(current_standalone, keywords)
             
             if self.node_check_sufficiency(user_query, final_docs):
-                print("Kết quả: Đủ thông tin.")
+                print("   Kết quả: Đủ thông tin.")
                 is_sufficient = True
                 break
             else:
-                print(f"Lần {attempts+1} thất bại. Đang viết lại query tìm kiếm...")
+                print(f"   Lần {attempts+1} thất bại. Đang viết lại query tìm kiếm...")
                 refine_prompt = f"""Bạn là chuyên gia tra cứu văn bản pháp luật. 
 Lần tìm kiếm trước cho câu hỏi "{user_query}" không mang lại đủ thông tin.
 
@@ -243,10 +243,10 @@ Lần tìm kiếm trước cho câu hỏi "{user_query}" không mang lại đủ
 
         # FINAL NLI CHECK
         is_faithful = self.node_verify_nli(answer, final_docs)
-        print(f"Kết quả NLI: {'TRUNG THỰC' if is_faithful else 'ẢO GIÁC'}")
+        print(f"   Kết quả NLI: {'TRUNG THỰC' if is_faithful else 'ẢO GIÁC'}")
 
         if not is_faithful:
-            print("Phát hiện ảo giác! Nhờ Cloud Gemini sửa lỗi...")
+            print("   Phát hiện ảo giác! Nhờ Cloud Gemini sửa lỗi...")
             # Chuẩn bị context để gửi kèm cho Gemini (rất quan trọng)
             context_text = "\n\n".join([d.page_content for d in final_docs])
     
