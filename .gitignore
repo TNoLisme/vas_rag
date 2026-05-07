@@ -1,5 +1,5 @@
 .env
 __pycache__/
 .venv/
-vector_db/
-history/
+vas_vector_db/
+chat_history/
