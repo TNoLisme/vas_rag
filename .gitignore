@@ -3,3 +3,4 @@ __pycache__/
 .venv/
 vas_vector_db/
 chat_history/
+*.xlsx

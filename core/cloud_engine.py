@@ -6,8 +6,8 @@ from langchain_ollama import OllamaEmbeddings
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_community.retrievers import BM25Retriever
 from langchain_classic.retrievers.ensemble import EnsembleRetriever
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.documents import Document
+from core.prompts import REWRITE_PROMPT, build_context_text, build_generation_prompt
 
 class VASCloudSystem:
     def __init__(self, vector_db_path="vas_vector_db/"):
@@ -32,31 +32,7 @@ class VASCloudSystem:
         history_str = "\n".join([f"{m['role']}: {m['content']}" for m in chat_history_list[-3:]])
 
         print(f"[NODE: REWRITE] Model: Cloud Gemini")
-        prompt_rw = ChatPromptTemplate.from_template("""
-[VAI TRÒ] Bạn là chuyên gia phân tích truy vấn cấp cao cho hệ thống RAG Chuẩn mực Kế toán Việt Nam (VAS).
-[NHIỆM VỤ] Dựa vào lịch sử chat và câu hỏi mới, hãy thực hiện hai bước suy luận:
-1. Viết lại câu hỏi thành 'standalone_query': Đây là một câu văn xuôi đầy đủ, mô tả rõ ý nghĩa ngữ nghĩa để tìm kiếm (Vector Search). Nếu người dùng dùng các từ thay thế (nó, khoản này, tài khoản đó...), hãy dựa vào lịch sử để thay bằng tên thực thể kế toán cụ thể.
-2. Trích xuất 'keywords': Lọc ra 3-5 cụm từ khóa quan trọng NHẤT từ 'standalone_query'. 
-- YÊU CẦU: Ưu tiên là CỤM TỪ chuyên ngành hoặc MÃ HIỆU (Ví dụ: "VAS 02", "Giá gốc hàng tồn kho"). 
-- HẠN CHẾ: Hạn chế lấy các từ phổ biến, không lấy từ đơn lẻ nếu nó không mang tính đặc thù, và không lấy cả câu dài làm từ khóa.
-[YÊU CẦU ĐỊNH DẠNG]
-- Trả về DUY NHẤT một khối JSON. 
-- KHÔNG giải thích, KHÔNG chào hỏi, KHÔNG có văn bản bên ngoài khối JSON.
-- Đảm bảo các Key trong JSON là "standalone_query" và "keywords".
-[VÍ DỤ]
-Lịch sử: "User: VAS 02 nói về gì? | AI: VAS 02 quy định về Hàng tồn kho."
-User: "Nguyên tắc xác định giá gốc của nó?"
-Kết quả JSON:
-{{
-    "standalone_query": "Nguyên tắc xác định giá gốc hàng tồn kho theo quy định của Chuẩn mực kế toán VAS 02 như thế nào?",
-    "keywords": ["VAS 02", "giá gốc hàng tồn kho", "nguyên tắc xác định"]
-}}
-Lịch sử: {history}
-Câu hỏi mới: {query}
-Kết quả JSON:
-""")
-
-        res_rw = self.cloud_llm.invoke(prompt_rw.format(history=history_str, query=user_query)).content
+        res_rw = self.cloud_llm.invoke(REWRITE_PROMPT.format(history=history_str, query=user_query)).content
         try:
             json_str = re.search(r'\{.*\}', res_rw, re.DOTALL).group()
             pkg = json.loads(json_str)
@@ -72,26 +48,8 @@ Kết quả JSON:
         docs = self.hybrid_retriever.invoke(f"{standalone} {' '.join(keywords)}")
         
         print(f"[NODE: GENERATE] Model: Cloud Gemini")
-        context_text = ""
-        for i, d in enumerate(docs):
-            path = " > ".join([str(v) for k, v in d.metadata.items() if k in ['Standard', 'Chapter', 'Section', 'Article', 'Point'] and v])
-            context_text += f"--- NGUỒN {i+1} ({path}) ---\n{d.page_content}\n\n"
-
-        prompt_gen = f"""Bạn là Chuyên gia Kế toán cao cấp. Hãy trả lời câu hỏi dựa trên các nguồn tri thức được cung cấp.
-[TRI THỨC CUNG CẤP]
-{context_text}
-[CÂU HỎI]
-{user_query}
-[YÊU CẦU NGHIÊM NGẶT]
-1. TRUNG THỰC: Chỉ sử dụng thông tin trong [TRI THỨC CUNG CẤP]. Không dùng kiến thức ngoài.
-2. SUY LUẬN LOGIC: Nếu tài liệu không có câu trả lời trực tiếp, hãy dựa vào các nguyên tắc, định nghĩa trong nguồn tin để SUY LUẬN và giải quyết câu hỏi.
-3. TRÍCH DẪN (CITATION): BẮT BUỘC ghi rõ nguồn ở cuối mỗi ý hoặc mỗi đoạn. Sử dụng tên chuẩn mực hoặc số Điều/Khoản có trong nhãn (Nguồn: ...). 
-   - Ví dụ: "Hàng tồn kho được tính theo giá gốc (theo VAS 02 > Điều 04)".
-4. PHONG CÁCH:
-- Trình bày dạng văn xuôi mạch lạc hoặc danh sách gạch đầu dòng (bullet points).
-- TUYỆT ĐỐI KHÔNG sử dụng tiêu đề Markdown (không dùng dấu #, ##, ###).
-- KHÔNG bôi đậm dòng để làm tiêu đề giả. Câu trả lời phải phẳng và dễ đọc như một bản ghi chú chuyên môn.
-CÂU TRẢ LỜI:"""
+        context_text = build_context_text(docs)
+        prompt_gen = build_generation_prompt(context_text, user_query)
 
         answer = self.cloud_llm.invoke(prompt_gen).content
         sources_dict = [{"content": d.page_content, "metadata": d.metadata} for d in docs]
